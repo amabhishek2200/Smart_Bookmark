@@ -1,27 +1,40 @@
-'use client'
-
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabaseClient'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Command, Check } from 'lucide-react'
+import { Input } from './ui/Input'
+import { Button } from './ui/Button'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Bookmark } from '@/types'
 
 interface AddBookmarkFormProps {
-    onAdd: (bookmark: any) => void
+    onAdd: (bookmark: Bookmark) => void
 }
 
 export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
-    const [title, setTitle] = useState('')
     const [url, setUrl] = useState('')
     const [loading, setLoading] = useState(false)
+    const [success, setSuccess] = useState(false)
+    const [isFocused, setIsFocused] = useState(false)
     const supabase = createClient()
+
+    useEffect(() => {
+        if (success) {
+            const timer = setTimeout(() => setSuccess(false), 2000)
+            return () => clearTimeout(timer)
+        }
+    }, [success])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!title || !url) return
+        if (!url) return
 
         setLoading(true)
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('No user found')
+
+            // Basic title extraction
+            const title = new URL(url).hostname.replace('www.', '')
 
             const { data, error } = await supabase
                 .from('bookmarks')
@@ -33,47 +46,70 @@ export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
 
             if (data) {
                 onAdd(data)
+                setSuccess(true)
             }
 
-            setTitle('')
             setUrl('')
         } catch (error) {
             console.error('Error adding bookmark:', error)
-            alert('Error adding bookmark')
+            // Ideally use a toast notification here
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <form onSubmit={handleSubmit} className="mb-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">Add New Bookmark</h2>
-            <div className="flex flex-col md:flex-row gap-4">
-                <input
-                    type="text"
-                    placeholder="Title (e.g., Google)"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                    required
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative z-20 w-full max-w-2xl mx-auto mb-12"
+        >
+            <form onSubmit={handleSubmit} className="relative">
+                <div
+                    className={`absolute -inset-1 rounded-lg bg-gradient-to-r from-primary to-secondary opacity-0 transition-opacity duration-500 blur ${isFocused ? 'opacity-50' : 'group-hover:opacity-30'}`}
                 />
-                <input
-                    type="url"
-                    placeholder="URL (e.g., https://google.com)"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                    required
-                />
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                    Add
-                </button>
-            </div>
-        </form>
+
+                <div className="relative flex items-center gap-2 p-1 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg">
+                    <div className="pl-3 text-gray-400">
+                        <Command className="w-5 h-5" />
+                    </div>
+
+                    <Input
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                        placeholder="Paste a URL to add..."
+                        className="flex-1 border-none bg-transparent shadow-none focus:ring-0 text-lg py-4"
+                        autoFocus
+                        noGlow
+                    />
+
+                    <Button
+                        type="submit"
+                        isLoading={loading}
+                        disabled={!url || loading}
+                        className={`mr-1 transition-all duration-300 ${success ? 'bg-green-500 hover:bg-green-600 text-black' : ''}`}
+                        size="md"
+                    >
+                        {success ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                    </Button>
+                </div>
+            </form>
+
+            <AnimatePresence>
+                {isFocused && (
+                    <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute -bottom-8 left-0 right-0 text-center text-xs text-gray-500 font-mono"
+                    >
+                        Press <span className="text-primary">Enter</span> to save
+                    </motion.p>
+                )}
+            </AnimatePresence>
+        </motion.div>
     )
 }
