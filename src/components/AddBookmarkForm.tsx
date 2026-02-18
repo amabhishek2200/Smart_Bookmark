@@ -11,6 +11,7 @@ interface AddBookmarkFormProps {
 }
 
 export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
+    const [title, setTitle] = useState('')
     const [url, setUrl] = useState('')
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)
@@ -33,12 +34,12 @@ export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('No user found')
 
-            // Basic title extraction
-            const title = new URL(url).hostname.replace('www.', '')
+            // Use custom title or fallback to hostname
+            const bookmarkTitle = title || new URL(url).hostname.replace('www.', '')
 
             const { data, error } = await supabase
                 .from('bookmarks')
-                .insert([{ title, url, user_id: user.id }])
+                .insert([{ title: bookmarkTitle, url, user_id: user.id }])
                 .select()
                 .single()
 
@@ -50,6 +51,7 @@ export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
             }
 
             setUrl('')
+            setTitle('')
         } catch (error) {
             console.error('Error adding bookmark:', error)
             // Ideally use a toast notification here
@@ -74,6 +76,18 @@ export default function AddBookmarkForm({ onAdd }: AddBookmarkFormProps) {
                     <div className="pl-3 text-gray-400">
                         <Command className="w-5 h-5" />
                     </div>
+
+                    <Input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        onFocus={() => setIsFocused(true)}
+                        onBlur={() => setIsFocused(false)}
+                        placeholder="Title"
+                        className="w-64 border-none bg-transparent shadow-none focus:ring-0 text-lg py-4"
+                        noGlow
+                    />
+
+                    <div className="h-8 w-px bg-white/10" />
 
                     <Input
                         value={url}
